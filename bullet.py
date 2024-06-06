@@ -1,11 +1,11 @@
 from mycomp import *
 from math import sin,cos,pi,atan2
-import pygame,player
+import pygame,player,propreties
 from mymap import *
 def is_acute_angle(angle:float):
     return (0 <= angle <= pi/2 or pi*3/2 <= angle <= 2*pi)
 class Bullet:
-    SPEED = 5
+    SPEED = propreties.data["bulletspeed"]
     R = 6
     ALL_TIME = 20*40
     AGGRESSIVE_TIME = ALL_TIME - 10
@@ -19,8 +19,16 @@ class Bullet:
     def is_effect(self):
         return self.effect_time != -1
     def touch_player(self,ply:player.Player):
-        rects = ply.getrects()
-        for rect in rects:
+        #rects = ply.getrects()
+        tankpoints = ply.getallpoints()
+        for i in range(-1,7):
+            if abs(self.position - t2c(tankpoints[i])) < self.R:
+                return True
+            line = player.SegmentLine(tankpoints[i], tankpoints[i+1])
+            if 0 <= line.distance(self.position) <= self.R:
+                return True
+        return False
+        """for rect in rects:
             for point in rect.points:
                 if abs(self.position - t2c(point)) < self.R:
                     return True
@@ -30,7 +38,7 @@ class Bullet:
                 p2_bullet = rect2polar(self.position-t2c(rect.points[i+1]))
                 angle1,angle2 = (p1_p2 - p1_bullet[0]) % (2*pi),(p1_p2 + pi - p2_bullet[0]) % (2*pi)
                 if is_acute_angle(angle1) and is_acute_angle(angle2) and abs(p1_bullet[1]*sin(angle1)) <= self.R:
-                    return True
+                    return True"""
         return False
     def update(self,mymap:Map,players:tuple[player.Player]):
         if self.effect_time == 0:
@@ -50,42 +58,13 @@ class Bullet:
         #计算子弹的新位置
         self.effect_time -= 1
         self.position += complex(self.SPEED*cos(self.angle),self.SPEED*sin(self.angle))
-        walls,center = mymap.getByPoint(c2t(self.position))
+        walls,center = mymap.getWalls(c2t(self.position))
         #判断离子弹最近的所有墙所组成的结构，将墙体结构简化为点与线的组合，交给bounce函数分析
-        if len(walls) == 0:
-            ...
-        elif len(walls) == 1:
-            sign = walls[0]
-            sangle = atan2(*rc2t(sign+0j))
-            self.bounce(((center-sign*HW+sign*I*HW,sangle+pi*3/4),(center-sign*HW-sign*I*HW,sangle-pi*3/4)),\
-                        (center-sign*HW+sign*I*HW,center+sign*(HW+SQSIZE)+sign*I*HW),\
-                        (center-sign*HW-sign*I*HW,center+sign*(HW+SQSIZE)-sign*I*HW),\
-                        (center-sign*HW+sign*I*HW,center-sign*HW-sign*I*HW))
-        elif len(walls) == 2:
-            sign1,sign2 = walls
-            if sign1+sign2 == 0:
-                self.bounce((),\
-                            (center+sign1*I*HW+sign1*(HW+SQSIZE),center+sign1*I*HW-sign1*(HW+SQSIZE)),\
-                            (center+sign2*I*HW+sign2*(HW+SQSIZE),center+sign2*I*HW-sign2*(HW+SQSIZE)))
-            else:
-                self.bounce(((center-sign1*HW-sign2*HW,atan2(*rc2t(sign1+sign2))+pi),),\
-                            (center-sign1*HW-sign2*HW,center+sign1*(HW+SQSIZE)-sign2*HW),\
-                            (center-sign1*HW-sign2*HW,center-sign1*HW+sign2*(HW+SQSIZE)),\
-                            *self.getCorner(center,sign1,sign2))
-        elif len(walls) == 3:
-            sign = list({1,-1,I,-I}-set(walls))[0]
-            self.bounce((),\
-                        (center+sign*HW+sign*I*(HW+SQSIZE),center+sign*HW-sign*I*(HW+SQSIZE)),\
-                        *self.getCorner(center,sign*I,-sign),\
-                        *self.getCorner(center,-sign,-I*sign))
-        else:
-            lines = []
-            for c in (1,-1,I,-I):
-                lines.extend(self.getCorner(center,c,c*I))
-            self.bounce((),*lines)
+        lines,points = mymap.getLines(walls,center),mymap.getPoints(walls,center)
+        self.bounce(points,lines)
     def getCorner(self,center:complex,sign1,sign2):
         return [(center+sign1*HW+sign2*HW,center+sign1*(HW+SQSIZE)+sign2*HW),(center+sign1*HW+sign2*HW,center+sign1*HW+sign2*(HW+SQSIZE))]
-    def bounce(self,points:tuple,*lines:tuple):
+    def bounce(self,points:tuple,lines:tuple):
         flag = False
         for line in lines:
             x1,y1 = c2t(line[0])
@@ -107,3 +86,4 @@ class Bullet:
                 if abs(self.position - point) <= self.R:
                     self.position = point + complex(self.R*cos(pangle)*(2**0.5),self.R*sin(pangle)*(2**0.5))
                     self.angle = (2 * pangle - self.angle + pi) % (2*pi)
+
