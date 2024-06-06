@@ -1,9 +1,13 @@
 import pygame
 from mycomp import *
 from random import randint,choice
-SQSIZE = 130
+SQSIZE = 120
 WALLWIDTH = 10
 HW = WALLWIDTH // 2
+def blit_center(screen:pygame.Surface,image:pygame.Surface,center:tuple):
+    image_rect = image.get_rect()
+    image_rect.center = center[0], center[1]
+    screen.blit(image,image_rect)
 #生成随机地图的生成器
 def map_generator():
     check = lambda x:0<=x[0]<cols and 0<=x[1]<rows and sqlist[x[0]][x[1]]==0
@@ -70,7 +74,7 @@ class Map:
             if wall[2] == 1:
                 pygame.draw.rect(self.surface,(0,0,0),(wall[0]*SQSIZE+self.startx,wall[1]*SQSIZE+self.starty,WALLWIDTH,SQSIZE+WALLWIDTH))
     #根据给定点，寻找距离其最近的节点，返回该节点坐标以及其上的所有墙
-    def getByPoint(self,point:tuple):
+    def getWalls(self,point:tuple):
         col = round((point[0] - WALLWIDTH//2 - self.startx)/SQSIZE)
         row = round((point[1] - WALLWIDTH//2 - self.starty)/SQSIZE)
         walls = []
@@ -78,3 +82,45 @@ class Map:
             if c[:3] in self.walls:
                 walls.append(c[3])
         return walls,complex(col*SQSIZE+WALLWIDTH//2+self.startx,row*SQSIZE+WALLWIDTH//2+self.starty)
+    def getCorner(self,center:complex,sign1,sign2):
+        return ((center+sign1*HW+sign2*HW,center+sign1*(HW+SQSIZE)+sign2*HW),(center+sign1*HW+sign2*HW,center+sign1*HW+sign2*(HW+SQSIZE)))
+    def getLines(self,walls:tuple,center:complex):
+        if len(walls) == 0:
+            return ()
+        elif len(walls) == 1:
+            sign = walls[0]
+            return (center-sign*HW+sign*I*HW,center+sign*(HW+SQSIZE)+sign*I*HW),\
+                   (center-sign*HW-sign*I*HW,center+sign*(HW+SQSIZE)-sign*I*HW),\
+                   (center-sign*HW+sign*I*HW,center-sign*HW-sign*I*HW)
+        elif len(walls) == 2:
+            sign1,sign2 = walls
+            if sign1+sign2 == 0:
+                return (center+sign1*I*HW+sign1*(HW+SQSIZE),center+sign1*I*HW-sign1*(HW+SQSIZE)),\
+                       (center+sign2*I*HW+sign2*(HW+SQSIZE),center+sign2*I*HW-sign2*(HW+SQSIZE))
+            else:
+                return ((center-sign1*HW-sign2*HW,center+sign1*(HW+SQSIZE)-sign2*HW),\
+                       (center-sign1*HW-sign2*HW,center-sign1*HW+sign2*(HW+SQSIZE)))+\
+                        self.getCorner(center,sign1,sign2)
+        elif len(walls) == 3:
+            sign = list({1,-1,I,-I}-set(walls))[0]
+            return ((center+sign*HW+sign*I*(HW+SQSIZE),center+sign*HW-sign*I*(HW+SQSIZE)),)+\
+                    self.getCorner(center,sign*I,-sign)+\
+                    self.getCorner(center,-sign,-I*sign)
+        else:
+            lines = []
+            for c in (1,-1,I,-I):
+                lines.extend(self.getCorner(center,c,c*I))
+            return tuple(lines)
+    def getPoints(self,walls:tuple,center:complex):
+        if len(walls) in (0,3,4):
+            return ()
+        elif len(walls) == 2:
+            sign1,sign2 = walls
+            if sign1+sign2 != 0:
+                return ((center-sign1*HW-sign2*HW,atan2(*rc2t(sign1+sign2))+pi),)
+            else:
+                return ()
+        else:
+            sign = walls[0]
+            sangle = atan2(*rc2t(sign+0j))
+            return (center-sign*HW+sign*I*HW,sangle+pi*3/4),(center-sign*HW-sign*I*HW,sangle-pi*3/4)
